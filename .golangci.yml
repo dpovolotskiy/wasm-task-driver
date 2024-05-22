@@ -1,0 +1,59 @@
+run:
+  tests: true
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  disable-all: true
+  enable:
+    - asciicheck
+    - bodyclose
+    - dogsled
+    - errcheck
+    - exportloopref
+    - gocognit
+    - goconst
+    - gocyclo
+    - godot
+      #- goerr113
+    - gofmt
+    - goimports
+    - gomodguard
+    - gosimple
+    - gosec
+    - govet
+    - goprintffuncname
+    - ineffassign
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - prealloc
+    - revive
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unused
+    - whitespace
+    - wsl
+
+linters-settings:
+  gofmt:
+    simplify: true
+  golint:
+    min-confidence: 0.9
+  govet:
+    check-shadowing: true
+    # enable:
+    # - "fieldalignment"
+  gocyclo:
+    min-complexity: 15
+  gocognit:
+    min-complexity: 31
+  revive:
+    rules:
+      - name: unused-parameter
+        disabled: false
+        arguments:
+          - allowRegex: "^_.*"
