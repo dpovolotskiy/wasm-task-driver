@@ -1,7 +1,7 @@
 log_level = "TRACE"
 bind_addr = "0.0.0.0"
 
-plugin "wasmtime-driver" {
+plugin "wasm-task-driver" {
   config {
     cache {
       enabled = true
@@ -13,7 +13,7 @@ plugin "wasmtime-driver" {
       }
       preCache {
         enabled = false
-        modulesDir = "/home/dpovolotskii/git/nomad-wasmtime-driver-plugin/example/wasm-modules"
+        modulesDir = "/home/dpovolotskii/git/wasm-task-driver/example/wasm-modules"
       }
     }
   }

@@ -1,4 +1,4 @@
-package wasmtime
+package wasm
 
 import (
 	"context"
@@ -24,7 +24,7 @@ const (
 	// pluginName is the name of the plugin
 	// this is used for logging and (along with the version) for uniquely
 	// identifying plugin binaries fingerprinted by the client.
-	pluginName = "wasmtime"
+	pluginName = "wasm-task-driver"
 
 	// pluginVersion allows the client to identify and use newer versions of
 	// an installed plugin.
@@ -80,7 +80,7 @@ var (
 		//
 		// For example, for the schema below a valid configuration would be:
 		//
-		//   plugin "wasmtime-driver" {
+		//   plugin "wasm-task-driver" {
 		//     config {
 		//       cache {
 		//         enabled = true
@@ -147,7 +147,7 @@ var (
 		//   job "example" {
 		//     group "example" {
 		//       task "say-hello" {
-		//         driver = "wasmtime-driver-plugin"
+		//         driver = "wasm-task-driver"
 		//         config {
 		//           modulePath = "/absolute/path/to/wasm/module"
 		//           ioBuffer {
@@ -261,7 +261,7 @@ type TaskState struct {
 	StartedAt      time.Time
 }
 
-type WasmtimeDriverPlugin struct {
+type WasmTaskDriverPlugin struct {
 	// eventer is used to handle multiplexing of TaskEvents calls such that an
 	// event can be broadcast to all callers
 	eventer *eventer.Eventer
@@ -295,7 +295,7 @@ func NewPlugin(logger hclog.Logger) drivers.DriverPlugin {
 	ctx, cancel := context.WithCancel(context.Background())
 	logger = logger.Named(pluginName)
 
-	return &WasmtimeDriverPlugin{
+	return &WasmTaskDriverPlugin{
 		eventer:        eventer.NewEventer(ctx, logger),
 		config:         &Config{},
 		tasks:          newTaskStore(),
@@ -306,17 +306,17 @@ func NewPlugin(logger hclog.Logger) drivers.DriverPlugin {
 }
 
 // PluginInfo returns information describing the plugin.
-func (d *WasmtimeDriverPlugin) PluginInfo() (*base.PluginInfoResponse, error) {
+func (d *WasmTaskDriverPlugin) PluginInfo() (*base.PluginInfoResponse, error) {
 	return pluginInfo, nil
 }
 
 // ConfigSchema returns the plugin configuration schema.
-func (d *WasmtimeDriverPlugin) ConfigSchema() (*hclspec.Spec, error) {
+func (d *WasmTaskDriverPlugin) ConfigSchema() (*hclspec.Spec, error) {
 	return configSpec, nil
 }
 
 // SetConfig is called by the client to pass the configuration for the plugin.
-func (d *WasmtimeDriverPlugin) SetConfig(cfg *base.Config) error {
+func (d *WasmTaskDriverPlugin) SetConfig(cfg *base.Config) error {
 	var config Config
 	if len(cfg.PluginConfig) != 0 {
 		if err := base.MsgPackDecode(cfg.PluginConfig, &config); err != nil {
@@ -354,7 +354,7 @@ func (d *WasmtimeDriverPlugin) SetConfig(cfg *base.Config) error {
 }
 
 //nolint:gocyclo
-func (d *WasmtimeDriverPlugin) configureCache() error {
+func (d *WasmTaskDriverPlugin) configureCache() error {
 	cacheConf := d.config.Cache
 
 	cacheBuilder := gcache.New(cacheConf.Size)
@@ -431,18 +431,18 @@ func (d *WasmtimeDriverPlugin) configureCache() error {
 }
 
 // TaskConfigSchema returns the HCL schema for the configuration of a task.
-func (d *WasmtimeDriverPlugin) TaskConfigSchema() (*hclspec.Spec, error) {
+func (d *WasmTaskDriverPlugin) TaskConfigSchema() (*hclspec.Spec, error) {
 	return taskConfigSpec, nil
 }
 
 // Capabilities returns the features supported by the driver.
-func (d *WasmtimeDriverPlugin) Capabilities() (*drivers.Capabilities, error) {
+func (d *WasmTaskDriverPlugin) Capabilities() (*drivers.Capabilities, error) {
 	return capabilities, nil
 }
 
 // Fingerprint returns a channel that will be used to send health information
 // and other driver specific node attributes.
-func (d *WasmtimeDriverPlugin) Fingerprint(ctx context.Context) (<-chan *drivers.Fingerprint, error) {
+func (d *WasmTaskDriverPlugin) Fingerprint(ctx context.Context) (<-chan *drivers.Fingerprint, error) {
 	ch := make(chan *drivers.Fingerprint)
 	go d.handleFingerprint(ctx, ch)
 
@@ -450,7 +450,7 @@ func (d *WasmtimeDriverPlugin) Fingerprint(ctx context.Context) (<-chan *drivers
 }
 
 // handleFingerprint manages the channel and the flow of fingerprint data.
-func (d *WasmtimeDriverPlugin) handleFingerprint(ctx context.Context, ch chan<- *drivers.Fingerprint) {
+func (d *WasmTaskDriverPlugin) handleFingerprint(ctx context.Context, ch chan<- *drivers.Fingerprint) {
 	defer close(ch)
 
 	// Nomad expects the initial fingerprint to be sent immediately
@@ -472,7 +472,7 @@ func (d *WasmtimeDriverPlugin) handleFingerprint(ctx context.Context, ch chan<- 
 }
 
 // buildFingerprint returns the driver's fingerprint data.
-func (d *WasmtimeDriverPlugin) buildFingerprint() *drivers.Fingerprint {
+func (d *WasmTaskDriverPlugin) buildFingerprint() *drivers.Fingerprint {
 	fp := &drivers.Fingerprint{
 		Attributes:        map[string]*structs.Attribute{},
 		Health:            drivers.HealthStateHealthy,
@@ -494,7 +494,7 @@ func (d *WasmtimeDriverPlugin) buildFingerprint() *drivers.Fingerprint {
 }
 
 // StartTask returns a task handle and a driver network if necessary.
-func (d *WasmtimeDriverPlugin) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drivers.DriverNetwork, error) {
+func (d *WasmTaskDriverPlugin) StartTask(cfg *drivers.TaskConfig) (*drivers.TaskHandle, *drivers.DriverNetwork, error) {
 	if _, ok := d.tasks.Get(cfg.ID); ok {
 		return nil, nil, fmt.Errorf("task with ID %q already started", cfg.ID)
 	}
@@ -557,12 +557,12 @@ func (d *WasmtimeDriverPlugin) StartTask(cfg *drivers.TaskConfig) (*drivers.Task
 }
 
 // RecoverTask recreates the in-memory state of a task from a TaskHandle.
-func (d *WasmtimeDriverPlugin) RecoverTask(_handle *drivers.TaskHandle) error {
+func (d *WasmTaskDriverPlugin) RecoverTask(_handle *drivers.TaskHandle) error {
 	return nil
 }
 
 // WaitTask returns a channel used to notify Nomad when a task exits.
-func (d *WasmtimeDriverPlugin) WaitTask(ctx context.Context, taskID string) (<-chan *drivers.ExitResult, error) {
+func (d *WasmTaskDriverPlugin) WaitTask(ctx context.Context, taskID string) (<-chan *drivers.ExitResult, error) {
 	handle, ok := d.tasks.Get(taskID)
 	if !ok {
 		return nil, drivers.ErrTaskNotFound
@@ -574,7 +574,7 @@ func (d *WasmtimeDriverPlugin) WaitTask(ctx context.Context, taskID string) (<-c
 	return ch, nil
 }
 
-func (d *WasmtimeDriverPlugin) handleWait(ctx context.Context, handle *taskHandle, ch chan *drivers.ExitResult) {
+func (d *WasmTaskDriverPlugin) handleWait(ctx context.Context, handle *taskHandle, ch chan *drivers.ExitResult) {
 	defer close(ch)
 
 	// When a result is sent in the result channel Nomad will stop the task and
@@ -595,7 +595,7 @@ func (d *WasmtimeDriverPlugin) handleWait(ctx context.Context, handle *taskHandl
 }
 
 // StopTask stops a running task with the given signal and within the timeout window.
-func (d *WasmtimeDriverPlugin) StopTask(taskID string, _timeout time.Duration, _signal string) error {
+func (d *WasmTaskDriverPlugin) StopTask(taskID string, _timeout time.Duration, _signal string) error {
 	handle, ok := d.tasks.Get(taskID)
 	if !ok {
 		return drivers.ErrTaskNotFound
@@ -607,7 +607,7 @@ func (d *WasmtimeDriverPlugin) StopTask(taskID string, _timeout time.Duration, _
 }
 
 // DestroyTask cleans up and removes a task that has terminated.
-func (d *WasmtimeDriverPlugin) DestroyTask(taskID string, force bool) error {
+func (d *WasmTaskDriverPlugin) DestroyTask(taskID string, force bool) error {
 	handle, ok := d.tasks.Get(taskID)
 	if !ok {
 		return drivers.ErrTaskNotFound
@@ -632,7 +632,7 @@ func (d *WasmtimeDriverPlugin) DestroyTask(taskID string, force bool) error {
 }
 
 // InspectTask returns detailed status information for the referenced taskID.
-func (d *WasmtimeDriverPlugin) InspectTask(taskID string) (*drivers.TaskStatus, error) {
+func (d *WasmTaskDriverPlugin) InspectTask(taskID string) (*drivers.TaskStatus, error) {
 	handle, ok := d.tasks.Get(taskID)
 	if !ok {
 		return nil, drivers.ErrTaskNotFound
@@ -642,7 +642,7 @@ func (d *WasmtimeDriverPlugin) InspectTask(taskID string) (*drivers.TaskStatus, 
 }
 
 // TaskStats returns a channel which the driver should send stats to at the given interval.
-func (d *WasmtimeDriverPlugin) TaskStats(ctx context.Context, taskID string, interval time.Duration) (<-chan *drivers.TaskResourceUsage, error) {
+func (d *WasmTaskDriverPlugin) TaskStats(ctx context.Context, taskID string, interval time.Duration) (<-chan *drivers.TaskResourceUsage, error) {
 	_, ok := d.tasks.Get(taskID)
 	if !ok {
 		return nil, drivers.ErrTaskNotFound
@@ -657,7 +657,7 @@ func (d *WasmtimeDriverPlugin) TaskStats(ctx context.Context, taskID string, int
 	return ch, nil
 }
 
-func (d *WasmtimeDriverPlugin) handleTaskStats(ctx context.Context, interval time.Duration, ch chan<- *drivers.TaskResourceUsage) {
+func (d *WasmTaskDriverPlugin) handleTaskStats(ctx context.Context, interval time.Duration, ch chan<- *drivers.TaskResourceUsage) {
 	defer close(ch)
 
 	ticker := time.NewTicker(interval)
@@ -681,12 +681,12 @@ func (d *WasmtimeDriverPlugin) handleTaskStats(ctx context.Context, interval tim
 }
 
 // TaskEvents returns a channel that the plugin can use to emit task related events.
-func (d *WasmtimeDriverPlugin) TaskEvents(ctx context.Context) (<-chan *drivers.TaskEvent, error) {
+func (d *WasmTaskDriverPlugin) TaskEvents(ctx context.Context) (<-chan *drivers.TaskEvent, error) {
 	return d.eventer.TaskEvents(ctx)
 }
 
 // SignalTask forwards a signal to a task.
-func (d *WasmtimeDriverPlugin) SignalTask(taskID string, _signal string) error {
+func (d *WasmTaskDriverPlugin) SignalTask(taskID string, _signal string) error {
 	_, ok := d.tasks.Get(taskID)
 	if !ok {
 		return drivers.ErrTaskNotFound
@@ -696,7 +696,7 @@ func (d *WasmtimeDriverPlugin) SignalTask(taskID string, _signal string) error {
 }
 
 // ExecTask returns the result of executing the given command inside a task.
-func (d *WasmtimeDriverPlugin) ExecTask(_taskID string, _cmd []string, _timeout time.Duration) (*drivers.ExecTaskResult, error) {
+func (d *WasmTaskDriverPlugin) ExecTask(_taskID string, _cmd []string, _timeout time.Duration) (*drivers.ExecTaskResult, error) {
 	// TODO: implement driver specific logic to execute commands in a task.
 	return nil, errors.New("this driver does not support exec")
 }

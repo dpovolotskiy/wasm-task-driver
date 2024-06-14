@@ -4,10 +4,10 @@ job "extra_args_example" {
 
   group "extra_args_example" {
     task "sum-numbers" {
-      driver = "wasmtime"
+      driver = "wasm-task-driver"
 
       config {
-        modulePath = "/home/dpovolotskii/git/nomad-wasmtime-driver-plugin/example/wasm-modules/sum.wasm"
+        modulePath = "/home/dpovolotskii/git/wasm-task-driver/example/wasm-modules/sum.wasm"
         main {
           mainFuncName = "sum"
           args = [123456, 678910]

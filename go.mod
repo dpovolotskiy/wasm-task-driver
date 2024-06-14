@@ -1,4 +1,4 @@
-module huawei.com/nomad-wasmtime-driver-plugin
+module huawei.com/wasm-task-driver
 
 go 1.21
 

@@ -4,10 +4,10 @@ job "simple_example" {
 
   group "simple_example" {
     task "reverse-string" {
-      driver = "wasmtime"
+      driver = "wasm-task-driver"
 
       config {
-        modulePath = "/home/dpovolotskii/git/nomad-wasmtime-driver-plugin/example/wasm-modules/buf_invertor.wasm"
+        modulePath = "/home/dpovolotskii/git/wasm-task-driver/example/wasm-modules/buf_invertor.wasm"
         ioBuffer {
           enabled = true
           inputValue = "test_string"

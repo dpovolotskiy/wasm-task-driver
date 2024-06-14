@@ -4,7 +4,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/plugins"
 
-	"huawei.com/nomad-wasmtime-driver-plugin/wasmtime"
+	"huawei.com/wasm-task-driver/wasm"
 )
 
 func main() {
@@ -14,5 +14,5 @@ func main() {
 
 // factory returns a new instance of a nomad driver plugin.
 func factory(log hclog.Logger) interface{} {
-	return wasmtime.NewPlugin(log)
+	return wasm.NewPlugin(log)
 }
