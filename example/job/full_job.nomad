@@ -12,7 +12,7 @@ job "full_example" {
           enabled = true
           size = 4096
           inputValue = "{ \"line\": \"test\" }"
-          IOBufFuncName = "get_io_buffer_ptr"
+          IOBufFuncName = "alloc"
           args = []
         }
         main {

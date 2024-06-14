@@ -90,37 +90,39 @@ func (h *taskHandle) run() {
 
 		getIOBufferPtrFunc := instance.GetFunc(h.store, h.ioBufferConf.IOBufFuncName)
 		if getIOBufferPtrFunc == nil {
-			h.reportError(fmt.Errorf("WASM module doesn't conform calling conventions: no get_io_buffer_ptr func"))
+			h.reportError(fmt.Errorf("WASM module doesn't conform calling conventions: no %s func", h.ioBufferConf.IOBufFuncName))
 
 			return
 		}
 
-		result, err2 := getIOBufferPtrFunc.Call(h.store, intListToIfaceList(h.ioBufferConf.Args)...)
+		h.ioBufferConf.Args = append([]int32{h.ioBufferConf.Size}, h.ioBufferConf.Args...)
+
+		ptr, err2 := getIOBufferPtrFunc.Call(h.store, intListToIfaceList(h.ioBufferConf.Args)...)
 		if err2 != nil {
-			h.reportError(fmt.Errorf("unable to call get_io_buffer_ptr function: %w", err2))
+			h.reportError(fmt.Errorf("unable to call %s function: %w", h.ioBufferConf.IOBufFuncName, err2))
 
 			return
 		}
 
-		offset := result.(int32)
+		offset := ptr.(int32)
 		ioBuffer = instance.GetExport(h.store, "memory").Memory().UnsafeData(h.store)[offset : offset+h.ioBufferConf.Size]
 		n := copy(ioBuffer, inputByte)
 
 		h.logger.Debug("copied data from task config to IO buffer", "bytes", n)
 
-		h.mainFunc.Args = append(h.mainFunc.Args, int32(n))
+		h.mainFunc.Args = append([]int32{offset, int32(n)}, h.mainFunc.Args...)
 	}
 
 	moduleMainFunc := instance.GetFunc(h.store, h.mainFunc.MainFuncName)
 	if moduleMainFunc == nil {
-		h.reportError(fmt.Errorf("WASM module doesn't conform calling conventions: no handle_buffer func"))
+		h.reportError(fmt.Errorf("WASM module doesn't conform calling conventions: no %s func", h.mainFunc.MainFuncName))
 
 		return
 	}
 
 	result, err := moduleMainFunc.Call(h.store, intListToIfaceList(h.mainFunc.Args)...)
 	if err != nil {
-		h.reportError(fmt.Errorf("failed to call handle_buffer(): %w", err))
+		h.reportError(fmt.Errorf("failed to call %s: %w", h.mainFunc.MainFuncName, err))
 
 		return
 	}

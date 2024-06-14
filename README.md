@@ -171,5 +171,3 @@ nomad logs $(ALLOCATION_ID)
 ## Limitations
 
 * Only `Int32` numbers can be passed to functions using the `args` option.
-* If the `ioBuffer` option is used, a buffer of the appropriate `size` must be
-  created on the WASM module side ([example](example/wasm-modules/src/buf_invertor/src/lib.rs#L3)).
