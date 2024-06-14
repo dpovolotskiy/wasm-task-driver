@@ -1,8 +1,9 @@
-Nomad Wasmtime Driver
+WASM Task Driver
 ==========
 
-This driver provides the ability to run WASM modules with Wasmtime runtime on
-Nomad.
+This driver provides the ability to run WASM modules with
+[Wasmtime](https://github.com/bytecodealliance/wasmtime-go) runtime on
+[Nomad](https://github.com/hashicorp/nomad).
 
 ## Example Job
 
@@ -16,7 +17,7 @@ job "sum" {
 
   group "sum" {
     task "sum" {
-      driver = "wasmtime"
+      driver = "wasm-task-driver"
 
       config {
         modulePath = "example/wasm-modules/sum.wasm"
@@ -51,7 +52,7 @@ Also make sure you use `go 1.21` or newer. After that you just need to execute
 the following commands:
 
 ```sh
-cd nomad-wasmtime-driver-plugin
+cd wasm-task-driver
 make build
 ```
 
@@ -91,8 +92,8 @@ make build
   * **enabled** - Defaults to `false`. Enables the ability to pass some data
     (e.g. string) to the WASM module buffer. Buffer must be created on the
     WASM module side.
-  * **size** - Defaults to `4096`. Helps to define the limits of the buffer
-    created in the WASM module.
+  * **size** - Defaults to `4096`. Defines the length of the buffer created
+    in the WASM module.
   * **inputValue** - Defines the value passed to the WASM module buffer.
   * **IOBufFuncName** - Defaults to `get_io_buffer_ptr`. Defines the name of the
     exported function in the WASM module that returns the address of the start
@@ -107,15 +108,15 @@ make build
   * **args** - Stores arguments that can be passed to the corresponding function
     (specified in `mainFuncName` parameter).
 
-## How To Start Nomad With Wasmtime Driver
+## How To Start Nomad With WASM Task Driver
 
 ### Local Development Setup
 
 ```sh
-# Build the Wasmtime Driver
+# Build the WASM Task Driver
 make build
 
-# Start Nomad with Wasmtime Driver
+# Start Nomad with WASM Task Driver
 nomad agent -dev -config=./example/config/agent.hcl -plugin-dir=$(pwd)/build/
 
 # Run Nomad job
@@ -142,7 +143,7 @@ nomad logs $(ALLOCATION_ID)
 
    ```vim
    ...
-   plugin "wasmtime-driver" {
+   plugin "wasm-task-driver" {
      config {
        cache {
          enabled = true
@@ -154,7 +155,7 @@ nomad logs $(ALLOCATION_ID)
          }
          preCache {
            enabled = false
-           modulesDir = "/nomad-wasmtime-driver-plugin/example/wasm-modules"
+           modulesDir = "/wasm-task-driver/example/wasm-modules"
          }
        }
      }

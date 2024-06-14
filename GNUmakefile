@@ -1,4 +1,4 @@
-PLUGIN_BINARY=build/wasmtime-driver
+PLUGIN_BINARY=build/wasm-task-driver
 export GO111MODULE=on
 
 default: build

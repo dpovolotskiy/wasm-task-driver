@@ -4,10 +4,10 @@ job "full_example" {
 
   group "full_example" {
     task "up-string" {
-      driver = "wasmtime"
+      driver = "wasm-task-driver"
 
       config {
-        modulePath = "/home/dpovolotskii/git/nomad-wasmtime-driver-plugin/example/wasm-modules/upper.wasm"
+        modulePath = "/home/dpovolotskii/git/wasm-task-driver/example/wasm-modules/upper.wasm"
         ioBuffer {
           enabled = true
           size = 4096
