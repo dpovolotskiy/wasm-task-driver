@@ -173,7 +173,7 @@ var (
 			"inputValue": hclspec.NewAttr("inputValue", "string", false),
 			"IOBufFuncName": hclspec.NewDefault(
 				hclspec.NewAttr("IOBufFuncName", "string", false),
-				hclspec.NewLiteral(`"get_io_buffer_ptr"`),
+				hclspec.NewLiteral(`"alloc"`),
 			),
 			"args": hclspec.NewAttr("args", "list(number)", false),
 		})), hclspec.NewLiteral(`{ enabled = false }`)),
@@ -225,7 +225,7 @@ type Config struct {
 type TaskConfig struct {
 	// This struct is the decoded version of the schema defined in the
 	// taskConfigSpec variable above. It's used to convert the string
-	// configuration for the task into Go contructs.
+	// configuration for the task into Go constructs.
 	ModulePath string         `codec:"modulePath"`
 	IOBuffer   IOBufferConfig `codec:"ioBuffer"`
 	Main       Main           `codec:"main"`
@@ -233,7 +233,7 @@ type TaskConfig struct {
 
 type IOBufferConfig struct {
 	Enabled bool `codec:"enabled"`
-	// Size helps to define the limits of the buffer created in the WASM module.
+	// Size defines the length of the buffer created in the WASM module.
 	Size int32 `codec:"size"`
 	// InputValue defines the value passed to the WASM module buffer.
 	InputValue string `codec:"inputValue"`
@@ -248,10 +248,6 @@ type Main struct {
 	// MainFuncName defines the function that will be called to handle the input.
 	MainFuncName string `codec:"mainFuncName"`
 	// Args stores args that can be passed to the corresponding function.
-	// If IOBufferConfig is enabled, the size of the passed input is also added to
-	// the end of the Args slice.
-	// So if IOBufferConfig is enabled and [1, 2] Args passed that means that final
-	// slice that will be passed to function will be [1, 2, *input_size*].
 	Args []int32 `codec:"args"`
 }
 
@@ -263,17 +259,8 @@ type TaskState struct {
 	ReattachConfig *structs.ReattachConfig
 	TaskConfig     *drivers.TaskConfig
 	StartedAt      time.Time
-
-	// The plugin keeps track of its running tasks in a in-memory data
-	// structure. If the plugin crashes, this data will be lost, so Nomad
-	// will respawn a new instance of the plugin and try to restore its
-	// in-memory representation of the running tasks using the RecoverTask()
-	// method below.
-	Pid int
 }
 
-// WasmtimeDriverPlugin is an example driver plugin. When provisioned in a job,
-// the taks will output a greet specified by the user.
 type WasmtimeDriverPlugin struct {
 	// eventer is used to handle multiplexing of TaskEvents calls such that an
 	// event can be broadcast to all callers

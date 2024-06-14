@@ -1,30 +1,32 @@
 use json;
+use std::mem;
+use std::os::raw::c_void;
 
-const IO_BUFFER_SIZE: usize = 4096;
+static mut IO_BUFFER_SIZE: usize = 0;
 
-static mut IO_BUFFER: [u8; IO_BUFFER_SIZE] = [0; IO_BUFFER_SIZE];
+#[export_name = "alloc"]
+pub extern "C" fn alloc(length: usize) -> *mut c_void {
+    let mut io_buffer = Vec::with_capacity(length);
+    let ptr = io_buffer.as_mut_ptr();
 
-#[export_name = "get_io_buffer_ptr"]
-pub extern "C" fn get_io_buffer_ptr() -> *const u8 {
-    let ptr: *const u8;
     unsafe {
-        ptr = IO_BUFFER.as_ptr()
+        IO_BUFFER_SIZE = length
     }
 
-    return ptr
+    mem::forget(io_buffer);
+
+    ptr
 }
 
 #[export_name = "handle_buffer"]
-pub extern "C" fn handle_buffer(length: usize) -> usize {
+pub unsafe extern "C" fn handle_buffer(ptr: *mut u8, length: usize) -> usize {
     if length > IO_BUFFER_SIZE {
         return 0;
     }
 
-    let mystring : String;
+    let io_buffer = std::slice::from_raw_parts_mut(ptr, length);
 
-    unsafe {
-        mystring = String::from_utf8(IO_BUFFER[0..length].to_vec()).unwrap();
-    }
+    let mystring = String::from_utf8(io_buffer.to_vec()).unwrap();
 
     let line = match json::parse(&mystring) {
         Ok(j) => j["line"].to_string(),
@@ -36,13 +38,16 @@ pub extern "C" fn handle_buffer(length: usize) -> usize {
 
     let newstring = data.dump();
     let newbytes = newstring.as_bytes();
-    unsafe {
-        let mut i = 0;
-        while i < newbytes.len() {
-            IO_BUFFER[i] = newbytes[i];
-            i = i+1;
-        }
+
+    if newbytes.len() > IO_BUFFER_SIZE {
+        return 0;
     }
 
-    return if newbytes.len() > IO_BUFFER_SIZE { 0 } else { newbytes.len() }
+    let mut i = 0;
+    while i < newbytes.len() {
+        io_buffer[i] = newbytes[i];
+        i = i+1;
+    }
+
+    return newbytes.len()
 }
