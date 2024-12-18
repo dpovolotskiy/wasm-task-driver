@@ -7,6 +7,7 @@ require (
 	github.com/bytecodealliance/wasmtime-go v1.0.0
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/nomad v1.6.0-beta.1
+	github.com/pkg/errors v0.9.1
 )
 
 require (

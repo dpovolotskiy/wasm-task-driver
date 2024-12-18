@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bluele/gcache"
-	"github.com/bytecodealliance/wasmtime-go"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/client/lib/fifo"
 	"github.com/hashicorp/nomad/plugins/drivers"
+
+	"huawei.com/wasm-task-driver/wasm/interfaces"
 )
 
 // taskHandle should store all relevant runtime information
@@ -26,12 +26,10 @@ type taskHandle struct {
 	completedAt time.Time
 	exitResult  *drivers.ExitResult
 
-	modulePath       string
-	ioBufferConf     IOBufferConfig
-	mainFunc         Main
-	wasmModulesCache gcache.Cache
-	store            *wasmtime.Store
-	completionCh     chan struct{}
+	ioBufferConf IOBufferConfig
+	mainFunc     Main
+	instance     interfaces.WasmInstance
+	completionCh chan struct{}
 }
 
 func (h *taskHandle) TaskStatus() *drivers.TaskStatus {
@@ -64,20 +62,6 @@ func (h *taskHandle) run() {
 	}
 	h.stateLock.Unlock()
 
-	module, err := h.getModule()
-	if err != nil {
-		h.reportError(err)
-
-		return
-	}
-
-	instance, err := wasmtime.NewInstance(h.store, module, []wasmtime.AsExtern{})
-	if err != nil {
-		h.reportError(fmt.Errorf("unable to create WASM instance: %w", err))
-
-		return
-	}
-
 	var ioBuffer []byte
 
 	if h.ioBufferConf.Enabled {
@@ -88,39 +72,26 @@ func (h *taskHandle) run() {
 			return
 		}
 
-		getIOBufferPtrFunc := instance.GetFunc(h.store, h.ioBufferConf.IOBufFuncName)
-		if getIOBufferPtrFunc == nil {
-			h.reportError(fmt.Errorf("WASM module doesn't conform calling conventions: no %s func", h.ioBufferConf.IOBufFuncName))
-
-			return
-		}
-
 		h.ioBufferConf.Args = append([]int32{h.ioBufferConf.Size}, h.ioBufferConf.Args...)
 
-		ptr, err2 := getIOBufferPtrFunc.Call(h.store, intListToIfaceList(h.ioBufferConf.Args)...)
-		if err2 != nil {
-			h.reportError(fmt.Errorf("unable to call %s function: %w", h.ioBufferConf.IOBufFuncName, err2))
+		ptr, err := h.instance.CallFunc(h.ioBufferConf.IOBufFuncName, intListToIfaceList(h.ioBufferConf.Args)...)
+		if err != nil {
+			h.reportError(fmt.Errorf("unable to call %s function: %w", h.ioBufferConf.IOBufFuncName, err))
 
 			return
 		}
 
 		offset := ptr.(int32)
-		ioBuffer = instance.GetExport(h.store, "memory").Memory().UnsafeData(h.store)[offset : offset+h.ioBufferConf.Size]
+		ioBuffer = h.instance.GetMemoryRange(offset, offset+h.ioBufferConf.Size)
 		n := copy(ioBuffer, inputByte)
 
 		h.logger.Debug("copied data from task config to IO buffer", "bytes", n)
 
+		//nolint:gosec
 		h.mainFunc.Args = append([]int32{offset, int32(n)}, h.mainFunc.Args...)
 	}
 
-	moduleMainFunc := instance.GetFunc(h.store, h.mainFunc.MainFuncName)
-	if moduleMainFunc == nil {
-		h.reportError(fmt.Errorf("WASM module doesn't conform calling conventions: no %s func", h.mainFunc.MainFuncName))
-
-		return
-	}
-
-	result, err := moduleMainFunc.Call(h.store, intListToIfaceList(h.mainFunc.Args)...)
+	result, err := h.instance.CallFunc(h.mainFunc.MainFuncName, intListToIfaceList(h.mainFunc.Args)...)
 	if err != nil {
 		h.reportError(fmt.Errorf("failed to call %s: %w", h.mainFunc.MainFuncName, err))
 
@@ -183,64 +154,7 @@ func (h *taskHandle) reportCompletion() {
 }
 
 func (h *taskHandle) stop() {
-	h.store.Engine.IncrementEpoch()
-}
-
-func (h *taskHandle) getModule() (*wasmtime.Module, error) {
-	var (
-		err    error
-		module *wasmtime.Module
-	)
-
-	if h.wasmModulesCache != nil {
-		mod, getCacheErr := h.wasmModulesCache.Get(h.modulePath)
-		switch getCacheErr {
-		case nil:
-			module, err = wasmtime.NewModuleDeserialize(h.store.Engine, mod.([]byte))
-			if err != nil {
-				h.logger.Error("unable to deserialize WASM module", "error", hclog.Fmt("%+v", err))
-
-				return nil, fmt.Errorf("unable to deserialize WASM module: %w", err)
-			}
-		case gcache.KeyNotFoundError:
-			module, err = wasmtime.NewModuleFromFile(h.store.Engine, h.modulePath)
-			if err != nil {
-				h.logger.Error("unable to load WASM module", "error", hclog.Fmt("%+v", err))
-
-				return nil, fmt.Errorf("unable to load WASM module: %w", err)
-			}
-
-			serModule, err2 := module.Serialize()
-			if err2 != nil {
-				h.logger.Error("unable to serialize WASM module", "error", hclog.Fmt("%+v", err))
-
-				return nil, fmt.Errorf("unable to serialize WASM module: %w", err)
-			}
-
-			if err2 := h.wasmModulesCache.Set(h.modulePath, serModule); err2 != nil {
-				h.logger.Error("unable to cache WASM module", "error", hclog.Fmt("%+v", err2))
-
-				return nil, fmt.Errorf("unable to cache WASM module: %w", err2)
-			}
-
-			h.logger.Debug("cached WASM module", "module", h.modulePath)
-		default:
-			h.logger.Error("unable to get module from cache", "error", hclog.Fmt("%+v", getCacheErr))
-
-			return nil, fmt.Errorf("unable to cache WASM module: %w", getCacheErr)
-		}
-	} else {
-		h.logger.Debug("modules cache disabled loading WASM module from file", "module", h.modulePath)
-
-		module, err = wasmtime.NewModuleFromFile(h.store.Engine, h.modulePath)
-		if err != nil {
-			h.logger.Error("unable to load WASM module", "error", hclog.Fmt("%+v", err))
-
-			return nil, fmt.Errorf("unable to load WASM module: %w", err)
-		}
-	}
-
-	return module, nil
+	h.instance.Stop()
 }
 
 func intListToIfaceList(input []int32) []interface{} {

@@ -5,6 +5,8 @@ import (
 	"github.com/hashicorp/nomad/plugins"
 
 	"huawei.com/wasm-task-driver/wasm"
+
+	_ "huawei.com/wasm-task-driver/wasm/engines/wasmtime"
 )
 
 func main() {
