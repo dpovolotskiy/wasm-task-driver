@@ -20,6 +20,7 @@ job "sum" {
       driver = "wasm-task-driver"
 
       config {
+        engine = "wasmtime"
         modulePath = "example/wasm-modules/sum.wasm"
         main {
           mainFuncName = "sum"
@@ -58,34 +59,39 @@ make build
 
 ## Driver Configuration
 
-* **cache** stanza:
+* **engines** stanza is list of engine definitions:
+  * **name** - Specifies the name of engine according to its extension
+    name (like [here](wasm/engines/wasmtime/wasmtime_engine.go#L18) for `wasmtime` engine).
+  * **enabled** - Defaults to `true`. Enables the defined wasm engine.
+  * **cache** stanza:
 
-  * **enabled** - Defaults to `true`. Allows serialized WASM modules to be cached
-    to increase task execution speed.
-  * **type** - Defaults to `lfu`. Allows to set one of the caching strategies.
-    Allowed values: `lfu (least frequently used)`, `lru (least recently used)`,
-    `arc (adaptive replacement cache)` and `simple` cache.
-  * **size** - Default to `5`. Define the size of the cache, i.e. the maximum
-    number of entries to be stored in the cache at the same time.
-  * **expiration** stanza:
+    * **enabled** - Defaults to `true`. Allows serialized WASM modules to be cached
+      to increase task execution speed.
+    * **type** - Defaults to `lfu`. Allows to set one of the caching strategies.
+      Allowed values: `lfu (least frequently used)`, `lru (least recently used)`,
+      `arc (adaptive replacement cache)` and `simple` cache.
+    * **size** - Default to `5`. Define the size of the cache, i.e. the maximum
+      number of entries to be stored in the cache at the same time.
+    * **expiration** stanza:
 
-    * **enabled** - Defaults to `true`. Enables the expiration time for cached
-      entries. After this time, entries are automatically removed from the
-      cache.
-    * **entryTTL** - Defaults to `600`. Specify the time after which the entry is
-      removed from the cache.
+      * **enabled** - Defaults to `true`. Enables the expiration time for cached
+        entries. After this time, entries are automatically removed from the
+        cache.
+      * **entryTTL** - Defaults to `600`. Specify the time after which the entry is
+        removed from the cache.
 
-  * **preCache** stanza:
+    * **preCache** stanza:
 
-    * **enabled** - Defaults to `false`. Enables pre-cache optimization that caches
-      all WASM modules in specified directory and subdirectories. It allows not
-      to spend additional time on loading and serialization of modules during
-      execution.
-    * **modulesDir** - Specifies the path to the directory from which all modules
-      (including subdirectories) are pre-cached.
+      * **enabled** - Defaults to `false`. Enables pre-cache optimization that caches
+        all WASM modules in specified directory and subdirectories. It allows not
+        to spend additional time on loading and serialization of modules during
+        execution.
+      * **modulesDir** - Specifies the path to the directory from which all modules
+        (including subdirectories) are pre-cached.
 
 ## Task Configuration
 
+* **engine** - Defines which wasm engine is used to execute the module.
 * **modulePath** - Path to the WASM module to run.
 * **ioBuffer** stanza:
 
@@ -145,19 +151,25 @@ nomad logs $(ALLOCATION_ID)
    ...
    plugin "wasm-task-driver" {
      config {
-       cache {
-         enabled = true
-         type = "lru"
-         size = 10
-         expiration {
+       engines = [
+         {
+           name = "wasmtime"
            enabled = true
-           entryTTL = 10
+           cache {
+             enabled = true
+             type = "lru"
+             size = 10
+             expiration {
+               enabled = true
+               entryTTL = 10
+             }
+             preCache {
+               enabled = true
+               modulesDir = "/wasm-task-driver/example/wasm-modules"
+             }
+           }
          }
-         preCache {
-           enabled = false
-           modulesDir = "/wasm-task-driver/example/wasm-modules"
-         }
-       }
+       ]
      }
    }
    ...
