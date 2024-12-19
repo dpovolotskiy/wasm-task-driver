@@ -7,7 +7,8 @@ job "simple_example" {
       driver = "wasm-task-driver"
 
       config {
-        modulePath = "/home/dpovolotskii/git/wasm-task-driver/example/wasm-modules/buf_invertor.wasm"
+        engine = "wasmtime"
+        modulePath = "/home/dpovolotskii/git/opensource/wasm-task-driver/example/wasm-modules/buf_invertor.wasm"
         ioBuffer {
           enabled = true
           inputValue = "test_string"

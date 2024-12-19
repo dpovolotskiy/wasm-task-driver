@@ -7,7 +7,8 @@ job "full_example" {
       driver = "wasm-task-driver"
 
       config {
-        modulePath = "/home/dpovolotskii/git/wasm-task-driver/example/wasm-modules/upper.wasm"
+        engine = "wasmtime"
+        modulePath = "/home/dpovolotskii/git/opensource/wasm-task-driver/example/wasm-modules/upper.wasm"
         ioBuffer {
           enabled = true
           size = 4096
