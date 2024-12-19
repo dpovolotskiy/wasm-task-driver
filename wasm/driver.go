@@ -4,13 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/bluele/gcache"
-	"github.com/bytecodealliance/wasmtime-go"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/drivers/shared/eventer"
 	"github.com/hashicorp/nomad/plugins/base"
@@ -18,6 +14,7 @@ import (
 	"github.com/hashicorp/nomad/plugins/drivers"
 	"github.com/hashicorp/nomad/plugins/shared/hclspec"
 	"github.com/hashicorp/nomad/plugins/shared/structs"
+	"huawei.com/wasm-task-driver/wasm/engines"
 )
 
 const (
@@ -82,45 +79,57 @@ var (
 		//
 		//   plugin "wasm-task-driver" {
 		//     config {
-		//       cache {
-		//         enabled = true
-		//         type = "lfu"
-		//         size = 5
-		//         expiration = {
+		//       engines = [
+		//         {
+		//           name = "wasmtime"
 		//           enabled = true
-		//           entryTTL = 600
+		//           cache {
+		//             enabled = true
+		//             type = "lru"
+		//             size = 5
+		//             expiration {
+		//               enabled = true
+		//               entryTTL = 600
+		//             }
+		//             preCache {
+		//               enabled = false
+		//             }
+		//           }
 		//         }
-		//         preCache {
-		//           enabled = false
-		//         }
-		//       }
+		//       ]
 		//     }
 		//   }
-		"cache": hclspec.NewDefault(hclspec.NewBlock("cache", false, hclspec.NewObject(map[string]*hclspec.Spec{
+		"engines": hclspec.NewBlockList("engines", hclspec.NewObject(map[string]*hclspec.Spec{
+			"name": hclspec.NewAttr("name", "string", true),
 			"enabled": hclspec.NewDefault(
 				hclspec.NewAttr("enabled", "bool", false),
 				hclspec.NewLiteral(`true`),
 			),
-			"type": hclspec.NewDefault(
-				hclspec.NewAttr("type", "string", false),
-				hclspec.NewLiteral(`"lfu"`),
-			),
-			"size": hclspec.NewDefault(
-				hclspec.NewAttr("size", "number", false),
-				hclspec.NewLiteral(`5`),
-			),
-			"expiration": hclspec.NewDefault(
-				hclspec.NewBlock("expiration", false, cacheExpirationBlock),
-				hclspec.NewLiteral(`{
+			"cache": hclspec.NewDefault(hclspec.NewBlock("cache", false, hclspec.NewObject(map[string]*hclspec.Spec{
+				"enabled": hclspec.NewDefault(
+					hclspec.NewAttr("enabled", "bool", false),
+					hclspec.NewLiteral(`true`),
+				),
+				"type": hclspec.NewDefault(
+					hclspec.NewAttr("type", "string", false),
+					hclspec.NewLiteral(`"lfu"`),
+				),
+				"size": hclspec.NewDefault(
+					hclspec.NewAttr("size", "number", false),
+					hclspec.NewLiteral(`5`),
+				),
+				"expiration": hclspec.NewDefault(
+					hclspec.NewBlock("expiration", false, cacheExpirationBlock),
+					hclspec.NewLiteral(`{
 					enabled = true
 					entryTTL = 600
 				}`),
-			),
-			"preCache": hclspec.NewDefault(
-				hclspec.NewBlock("preCache", false, preCacheBlock),
-				hclspec.NewLiteral(`{ enabled = false }`),
-			),
-		})), hclspec.NewLiteral(`{
+				),
+				"preCache": hclspec.NewDefault(
+					hclspec.NewBlock("preCache", false, preCacheBlock),
+					hclspec.NewLiteral(`{ enabled = false }`),
+				),
+			})), hclspec.NewLiteral(`{
 				enabled = true
 				type = "lfu"
 				size = 5
@@ -131,7 +140,8 @@ var (
 				preCache = {
 					enabled = false
 				}
-		}`)),
+			}`)),
+		})),
 	})
 
 	// taskConfigSpec is the specification of the plugin's configuration for
@@ -149,6 +159,7 @@ var (
 		//       task "say-hello" {
 		//         driver = "wasm-task-driver"
 		//         config {
+		//           engine = "wasmtime"
 		//           modulePath = "/absolute/path/to/wasm/module"
 		//           ioBuffer {
 		//             enabled = false
@@ -160,6 +171,7 @@ var (
 		//       }
 		//     }
 		//   }
+		"engine":     hclspec.NewAttr("engine", "string", true),
 		"modulePath": hclspec.NewAttr("modulePath", "string", true),
 		"ioBuffer": hclspec.NewDefault(hclspec.NewBlock("ioBuffer", false, hclspec.NewObject(map[string]*hclspec.Spec{
 			"enabled": hclspec.NewDefault(
@@ -212,12 +224,18 @@ type CacheConfig struct {
 	Expiration ExpirationConfig `codec:"expiration"`
 }
 
+type EngineConfig struct {
+	Name    string      `codec:"name"`
+	Enabled bool        `codec:"enabled"`
+	Cache   CacheConfig `codec:"cache"`
+}
+
 // Config contains configuration information for the plugin.
 type Config struct {
 	// This struct is the decoded version of the schema defined in the
 	// configSpec variable above. It's used to convert the HCL configuration
 	// passed by the Nomad agent into Go contructs.
-	Cache CacheConfig `codec:"cache"`
+	Engines []EngineConfig `codec:"engines"`
 }
 
 // TaskConfig contains configuration information for a task that runs with
@@ -226,6 +244,7 @@ type TaskConfig struct {
 	// This struct is the decoded version of the schema defined in the
 	// taskConfigSpec variable above. It's used to convert the string
 	// configuration for the task into Go constructs.
+	Engine     string         `codec:"engine"`
 	ModulePath string         `codec:"modulePath"`
 	IOBuffer   IOBufferConfig `codec:"ioBuffer"`
 	Main       Main           `codec:"main"`
@@ -285,9 +304,6 @@ type WasmTaskDriverPlugin struct {
 
 	// logger will log to the Nomad agent
 	logger hclog.Logger
-
-	// modulesCache is the cache that allow to store last recently used modules in memory
-	modulesCache gcache.Cache
 }
 
 // NewPlugin returns a new example driver plugin.
@@ -318,6 +334,7 @@ func (d *WasmTaskDriverPlugin) ConfigSchema() (*hclspec.Spec, error) {
 // SetConfig is called by the client to pass the configuration for the plugin.
 func (d *WasmTaskDriverPlugin) SetConfig(cfg *base.Config) error {
 	var config Config
+
 	if len(cfg.PluginConfig) != 0 {
 		if err := base.MsgPackDecode(cfg.PluginConfig, &config); err != nil {
 			return err
@@ -328,13 +345,16 @@ func (d *WasmTaskDriverPlugin) SetConfig(cfg *base.Config) error {
 	d.config = &config
 
 	// Validation of passed configuration
-	cacheConf := d.config.Cache
-	if cacheConf.Size <= 0 {
-		return fmt.Errorf("cache size must be > 0, but specified %v", cacheConf.Size)
-	}
+	for _, engineConf := range d.config.Engines {
+		cacheConf := engineConf.Cache
 
-	if cacheConf.Expiration.Enabled && cacheConf.Expiration.EntryTTL <= 0 {
-		return fmt.Errorf("cache entry time-to-live must be > 0, but specified %v", cacheConf.Expiration.EntryTTL)
+		if cacheConf.Size <= 0 {
+			return fmt.Errorf("%s engine: cache size must be > 0, but specified %v", engineConf.Name, cacheConf.Size)
+		}
+
+		if cacheConf.Expiration.Enabled && cacheConf.Expiration.EntryTTL <= 0 {
+			return fmt.Errorf("%s engine: cache entry time-to-live must be > 0, but specified %v", engineConf.Name, cacheConf.Expiration.EntryTTL)
+		}
 	}
 
 	// Save the Nomad agent configuration
@@ -344,8 +364,8 @@ func (d *WasmTaskDriverPlugin) SetConfig(cfg *base.Config) error {
 
 	// Here you can use the config values to initialize any resources that are
 	// shared by all tasks that use this driver, such as a daemon process.
-	if cacheConf.Enabled {
-		if err := d.configureCache(); err != nil {
+	for _, engineConf := range d.config.Engines {
+		if err := initializeEngine(d.logger, engineConf); err != nil {
 			return err
 		}
 	}
@@ -353,10 +373,44 @@ func (d *WasmTaskDriverPlugin) SetConfig(cfg *base.Config) error {
 	return nil
 }
 
-//nolint:gocyclo
-func (d *WasmTaskDriverPlugin) configureCache() error {
-	cacheConf := d.config.Cache
+func initializeEngine(logger hclog.Logger, engineConf EngineConfig) error {
+	engine, err := engines.Get(engineConf.Name)
+	if err != nil {
+		return fmt.Errorf("unable to get engine %s: %v", engineConf.Name, err)
+	}
 
+	if engineConf.Cache.Enabled {
+		newCache, err := buildCache(engineConf.Cache)
+		if err != nil {
+			return fmt.Errorf("unable to create cache for engine %s: %v", engineConf.Name, err)
+		}
+
+		engine.Init(logger, newCache)
+
+		if engineConf.Cache.PreCache.Enabled {
+			preCachedModulesNum, err := engine.PrePopulateCache(engineConf.Cache.PreCache.ModulesDir)
+			if err != nil {
+				return fmt.Errorf("unable to pre populate modules for engine %s from directory %s: %v", engineConf.Name, engineConf.Cache.PreCache.ModulesDir, err)
+			}
+
+			if preCachedModulesNum > engineConf.Cache.Size {
+				return fmt.Errorf("cache size (%v) must not be less then number of pre-cached modules (%v) for %s engine",
+					engineConf.Cache.Size, preCachedModulesNum, engineConf.Name)
+			}
+
+			if engineConf.Cache.Expiration.Enabled {
+				logger.Warn("since expiration enabled for cache all pre-cached modules also will be removed from cache after TTL",
+					"TTL", hclog.Fmt("%d seconds", engineConf.Cache.Expiration.EntryTTL), "engine", engineConf.Name)
+			}
+		}
+	} else {
+		engine.Init(logger, nil)
+	}
+
+	return nil
+}
+
+func buildCache(cacheConf CacheConfig) (gcache.Cache, error) {
 	cacheBuilder := gcache.New(cacheConf.Size)
 
 	if cacheConf.Expiration.Enabled {
@@ -373,61 +427,11 @@ func (d *WasmTaskDriverPlugin) configureCache() error {
 	case gcache.TYPE_SIMPLE:
 		cacheBuilder.Simple()
 	default:
-		return fmt.Errorf("unexpected cache type specified, expected types: [lfu, arc, lru, simple], but specififed %s",
+		return nil, fmt.Errorf("unexpected cache type specified, expected types: [lfu, arc, lru, simple], but specified %s",
 			cacheConf.Type)
 	}
 
-	d.modulesCache = cacheBuilder.Build()
-
-	if cacheConf.PreCache.Enabled {
-		var modulesPath []string
-
-		err := filepath.Walk(cacheConf.PreCache.ModulesDir, func(path string, info fs.FileInfo, err error) error {
-			if !info.IsDir() && strings.HasSuffix(info.Name(), ".wasm") {
-				modulesPath = append(modulesPath, path)
-			}
-			return nil
-		})
-
-		if err != nil {
-			return fmt.Errorf("unable to get WASM modules for pre-cache from %s directory: %v",
-				cacheConf.PreCache.ModulesDir, err)
-		}
-
-		if len(modulesPath) > cacheConf.Size {
-			return fmt.Errorf("cache size (%v) must not be less then number of pre-cached modules (%v)",
-				cacheConf.Size, len(modulesPath))
-		}
-
-		loadEngineConfig := wasmtime.NewConfig()
-		loadEngineConfig.SetEpochInterruption(true)
-		loadEngine := wasmtime.NewEngineWithConfig(loadEngineConfig)
-
-		for _, modulePath := range modulesPath {
-			wasmModule, err := wasmtime.NewModuleFromFile(loadEngine, modulePath)
-			if err != nil {
-				return fmt.Errorf("unable to load WASM module (%v) from file: %v", modulePath, err)
-			}
-
-			serModule, err := wasmModule.Serialize()
-			if err != nil {
-				return fmt.Errorf("unable to serialize WASM module (%v): %v", modulePath, err)
-			}
-
-			if err := d.modulesCache.Set(modulePath, serModule); err != nil {
-				return fmt.Errorf("unable to cache WASM module (%v)", modulePath)
-			}
-
-			d.logger.Trace("WASM module pre-cached", "module", modulePath)
-		}
-
-		if cacheConf.Expiration.Enabled {
-			d.logger.Warn("since expiration enabled for cache all pre-cached modules also will be removed from cache after TTL",
-				"TTL", hclog.Fmt("%d seconds", cacheConf.Expiration.EntryTTL))
-		}
-	}
-
-	return nil
+	return cacheBuilder.Build(), nil
 }
 
 // TaskConfigSchema returns the HCL schema for the configuration of a task.
@@ -509,13 +513,15 @@ func (d *WasmTaskDriverPlugin) StartTask(cfg *drivers.TaskConfig) (*drivers.Task
 	handle := drivers.NewTaskHandle(taskHandleVersion)
 	handle.Config = cfg
 
-	engineConfig := wasmtime.NewConfig()
-	engineConfig.SetEpochInterruption(true)
+	engine, err := engines.Get(driverConfig.Engine)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get %s engine: %v", driverConfig.Engine, err)
+	}
 
-	engine := wasmtime.NewEngineWithConfig(engineConfig)
-
-	store := wasmtime.NewStore(engine)
-	store.SetEpochDeadline(1)
+	newInstance, err := engine.InstantiateModule(driverConfig.ModulePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to instantiate module %s: %v", driverConfig.ModulePath, err)
+	}
 
 	// Once the task is started you will need to store any relevant runtime
 	// information in a taskHandle and TaskState. The taskHandle will be
@@ -528,16 +534,14 @@ func (d *WasmTaskDriverPlugin) StartTask(cfg *drivers.TaskConfig) (*drivers.Task
 	// enough information to handle that.
 
 	h := &taskHandle{
-		taskConfig:       cfg,
-		procState:        drivers.TaskStateRunning,
-		startedAt:        time.Now().Round(time.Millisecond),
-		logger:           d.logger,
-		modulePath:       driverConfig.ModulePath,
-		ioBufferConf:     driverConfig.IOBuffer,
-		mainFunc:         driverConfig.Main,
-		wasmModulesCache: d.modulesCache,
-		store:            store,
-		completionCh:     make(chan struct{}),
+		taskConfig:   cfg,
+		procState:    drivers.TaskStateRunning,
+		startedAt:    time.Now().Round(time.Millisecond),
+		logger:       d.logger,
+		ioBufferConf: driverConfig.IOBuffer,
+		mainFunc:     driverConfig.Main,
+		instance:     newInstance,
+		completionCh: make(chan struct{}),
 	}
 
 	driverState := TaskState{
