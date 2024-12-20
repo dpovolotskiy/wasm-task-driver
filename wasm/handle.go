@@ -82,7 +82,14 @@ func (h *taskHandle) run() {
 		}
 
 		offset := ptr.(int32)
-		ioBuffer = h.instance.GetMemoryRange(offset, offset+h.ioBufferConf.Size)
+
+		ioBuffer, err = h.instance.GetMemoryRange(offset, h.ioBufferConf.Size)
+		if err != nil {
+			h.reportError(fmt.Errorf("unable to get memory: %w", err))
+
+			return
+		}
+
 		n := copy(ioBuffer, inputByte)
 
 		h.logger.Debug("copied data from task config to IO buffer", "bytes", n)
@@ -130,6 +137,8 @@ func (h *taskHandle) run() {
 	}
 
 	h.logger.Debug("wrote data to stdout", "bytes", n)
+
+	h.instance.Cleanup()
 
 	h.reportCompletion()
 }

@@ -14,6 +14,7 @@ type Engine interface {
 
 type WasmInstance interface {
 	CallFunc(funcName string, args ...interface{}) (interface{}, error)
-	GetMemoryRange(start int32, end int32) []byte
+	GetMemoryRange(start int32, size int32) ([]byte, error)
 	Stop()
+	Cleanup()
 }

@@ -6,6 +6,7 @@ import (
 
 	"huawei.com/wasm-task-driver/wasm"
 
+	_ "huawei.com/wasm-task-driver/wasm/engines/wasmedge"
 	_ "huawei.com/wasm-task-driver/wasm/engines/wasmtime"
 )
 

@@ -2,8 +2,11 @@ WASM Task Driver
 ==========
 
 This driver provides the ability to run WASM modules with
-[Wasmtime](https://github.com/bytecodealliance/wasmtime-go) runtime on
-[Nomad](https://github.com/hashicorp/nomad).
+WASM runtimes on [Nomad](https://github.com/hashicorp/nomad).
+
+Supported runtimes:
+- [Wasmtime](https://github.com/bytecodealliance/wasmtime-go)
+- [Wasmedge](https://github.com/second-state/WasmEdge-go)
 
 ## Example Job
 
@@ -86,12 +89,12 @@ make build
         all WASM modules in specified directory and subdirectories. It allows not
         to spend additional time on loading and serialization of modules during
         execution.
-      * **modulesDir** - Specifies the path to the directory from which all modules
+      * **modulesDir** - Defaults to `""`. Specifies the path to the directory from which all modules
         (including subdirectories) are pre-cached.
 
 ## Task Configuration
 
-* **engine** - Defines which wasm engine is used to execute the module.
+* **engine** - Defines which WASM engine is used to execute the module.
 * **modulePath** - Path to the WASM module to run.
 * **ioBuffer** stanza:
 
@@ -168,6 +171,10 @@ nomad logs $(ALLOCATION_ID)
                modulesDir = "/wasm-task-driver/example/wasm-modules"
              }
            }
+         },
+         {
+           name = "wasmedge"
+           enabled = true
          }
        ]
      }
@@ -184,3 +191,4 @@ nomad logs $(ALLOCATION_ID)
 ## Limitations
 
 * Only `Int32` numbers can be passed to functions using the `args` option.
+* The Wasmedge runtime doesn't support VM interruption.

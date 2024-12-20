@@ -9,7 +9,6 @@ import (
 	"github.com/bluele/gcache"
 	"github.com/bytecodealliance/wasmtime-go"
 	"github.com/hashicorp/go-hclog"
-	"github.com/pkg/errors"
 
 	"huawei.com/wasm-task-driver/wasm/engines"
 	"huawei.com/wasm-task-driver/wasm/interfaces"
@@ -100,12 +99,12 @@ func (e *wasmtimeEngine) InstantiateModule(modulePath string) (interfaces.WasmIn
 
 	module, err := e.getModule(store, modulePath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to get module: %s", modulePath)
+		return nil, fmt.Errorf("unable to get module %s: %w", modulePath, err)
 	}
 
 	instance, err := wasmtime.NewInstance(store, module, []wasmtime.AsExtern{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to create new instance from module: %s", modulePath)
+		return nil, fmt.Errorf("unable to create new instance from module %s: %w", modulePath, err)
 	}
 
 	return &wasmtimeInstance{
