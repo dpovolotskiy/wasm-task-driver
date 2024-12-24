@@ -55,6 +55,7 @@ func (h *taskHandle) IsRunning() bool {
 
 func (h *taskHandle) run() {
 	defer close(h.completionCh)
+	defer h.instance.Cleanup()
 
 	h.stateLock.Lock()
 	if h.exitResult == nil {
@@ -138,8 +139,6 @@ func (h *taskHandle) run() {
 
 	h.logger.Debug("wrote data to stdout", "bytes", n)
 
-	h.instance.Cleanup()
-
 	h.reportCompletion()
 }
 
@@ -160,10 +159,6 @@ func (h *taskHandle) reportCompletion() {
 	h.exitResult.ExitCode = 0
 	h.exitResult.Signal = 0
 	h.completedAt = time.Now()
-}
-
-func (h *taskHandle) stop() {
-	h.instance.Stop()
 }
 
 func intListToIfaceList(input []int32) []interface{} {

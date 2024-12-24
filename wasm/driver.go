@@ -562,6 +562,9 @@ func (d *WasmTaskDriverPlugin) StartTask(cfg *drivers.TaskConfig) (*drivers.Task
 	}
 
 	if err := handle.SetDriverState(&driverState); err != nil {
+		// need to cleanup resources.
+		h.instance.Cleanup()
+
 		return nil, nil, fmt.Errorf("failed to set driver state: %v", err)
 	}
 
@@ -616,7 +619,7 @@ func (d *WasmTaskDriverPlugin) StopTask(taskID string, _timeout time.Duration, _
 		return drivers.ErrTaskNotFound
 	}
 
-	handle.stop()
+	handle.instance.Stop()
 
 	return nil
 }
@@ -638,7 +641,7 @@ func (d *WasmTaskDriverPlugin) DestroyTask(taskID string, force bool) error {
 	//
 
 	if handle.IsRunning() && force {
-		handle.stop()
+		handle.instance.Stop()
 	}
 
 	d.tasks.Delete(taskID)

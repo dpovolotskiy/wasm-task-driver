@@ -38,13 +38,11 @@ func (i *wasmedgeInstance) GetMemoryRange(start, size int32) ([]byte, error) {
 	return ioBuf, nil
 }
 
-func (i *wasmedgeInstance) Stop() {
-	i.Cleanup()
-}
+// TODO: find way to interrupt wasmedge instance execution.
+func (i *wasmedgeInstance) Stop() {}
 
 func (i *wasmedgeInstance) Cleanup() {
-	store := i.vm.GetStore()
-	defer store.Release()
+	defer i.vm.GetStore().Release()
 
 	i.module.Release()
 	i.vm.Release()

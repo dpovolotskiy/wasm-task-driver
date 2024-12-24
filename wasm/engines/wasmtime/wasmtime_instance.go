@@ -32,7 +32,6 @@ func (i *wasmtimeInstance) GetMemoryRange(start, size int32) ([]byte, error) {
 
 func (i *wasmtimeInstance) Stop() {
 	i.store.Engine.IncrementEpoch()
-	i.Cleanup()
 }
 
 func (i *wasmtimeInstance) Cleanup() {}

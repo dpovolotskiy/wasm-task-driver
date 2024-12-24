@@ -91,6 +91,10 @@ func (e *wasmedgeEngine) InstantiateModule(modulePath string) (interfaces.WasmIn
 
 	module, err := e.getModule(vm, modulePath)
 	if err != nil {
+		// in case of error during module getting we have to clean up created resources.
+		vm.Release()
+		store.Release()
+
 		return nil, fmt.Errorf("unable to get module %s: %w", modulePath, err)
 	}
 
