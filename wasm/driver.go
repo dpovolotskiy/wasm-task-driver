@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluele/gcache"
@@ -18,6 +19,9 @@ import (
 )
 
 const (
+	// fingerprintPrefix used to build attributes for plugin fingerprint.
+	fingerprintPrefix = "wasm"
+
 	// pluginName is the name of the plugin
 	// this is used for logging and (along with the version) for uniquely
 	// identifying plugin binaries fingerprinted by the client.
@@ -489,7 +493,7 @@ func (d *WasmTaskDriverPlugin) handleFingerprint(ctx context.Context, ch chan<- 
 // buildFingerprint returns the driver's fingerprint data.
 func (d *WasmTaskDriverPlugin) buildFingerprint() *drivers.Fingerprint {
 	fp := &drivers.Fingerprint{
-		Attributes:        map[string]*structs.Attribute{},
+		Attributes:        make(map[string]*structs.Attribute),
 		Health:            drivers.HealthStateHealthy,
 		HealthDescription: drivers.DriverHealthy,
 	}
@@ -504,6 +508,15 @@ func (d *WasmTaskDriverPlugin) buildFingerprint() *drivers.Fingerprint {
 	// the node in which the plugin is running (specific library availability,
 	// installed versions of a software etc.). These attributes can then be
 	// used by an operator to set job constrains.
+
+	supportedEngineNames := make([]string, 0, len(d.config.Engines))
+
+	for _, engine := range d.config.Engines {
+		supportedEngineNames = append(supportedEngineNames, engine.Name)
+	}
+
+	fp.Attributes[fmt.Sprintf("%s.%s", fingerprintPrefix, "supported_runtimes")] = structs.NewStringAttribute(
+		strings.Join(supportedEngineNames, ","))
 
 	return fp
 }
