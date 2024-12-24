@@ -55,6 +55,7 @@ func (h *taskHandle) IsRunning() bool {
 
 func (h *taskHandle) run() {
 	defer close(h.completionCh)
+	defer h.instance.Cleanup()
 
 	h.stateLock.Lock()
 	if h.exitResult == nil {
@@ -82,7 +83,14 @@ func (h *taskHandle) run() {
 		}
 
 		offset := ptr.(int32)
-		ioBuffer = h.instance.GetMemoryRange(offset, offset+h.ioBufferConf.Size)
+
+		ioBuffer, err = h.instance.GetMemoryRange(offset, h.ioBufferConf.Size)
+		if err != nil {
+			h.reportError(fmt.Errorf("unable to get memory: %w", err))
+
+			return
+		}
+
 		n := copy(ioBuffer, inputByte)
 
 		h.logger.Debug("copied data from task config to IO buffer", "bytes", n)
@@ -151,10 +159,6 @@ func (h *taskHandle) reportCompletion() {
 	h.exitResult.ExitCode = 0
 	h.exitResult.Signal = 0
 	h.completedAt = time.Now()
-}
-
-func (h *taskHandle) stop() {
-	h.instance.Stop()
 }
 
 func intListToIfaceList(input []int32) []interface{} {

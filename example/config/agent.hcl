@@ -20,6 +20,10 @@ plugin "wasm-task-driver" {
             modulesDir = "/home/dpovolotskii/git/opensource/wasm-task-driver/example/wasm-modules"
           }
         }
+      },
+      {
+        name = "wasmedge"
+        enabled = true
       }
     ]
   }

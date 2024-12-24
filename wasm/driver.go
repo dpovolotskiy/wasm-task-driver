@@ -47,25 +47,6 @@ var (
 		Name:              pluginName,
 	}
 
-	cacheExpirationBlock = hclspec.NewObject(map[string]*hclspec.Spec{
-		"enabled": hclspec.NewDefault(
-			hclspec.NewAttr("enabled", "bool", false),
-			hclspec.NewLiteral(`true`),
-		),
-		"entryTTL": hclspec.NewDefault(
-			hclspec.NewAttr("entryTTL", "number", false),
-			hclspec.NewLiteral(`600`),
-		),
-	})
-
-	preCacheBlock = hclspec.NewObject(map[string]*hclspec.Spec{
-		"enabled": hclspec.NewDefault(
-			hclspec.NewAttr("enabled", "bool", false),
-			hclspec.NewLiteral(`false`),
-		),
-		"modulesDir": hclspec.NewAttr("modulesDir", "string", false),
-	})
-
 	// configSpec is the specification of the plugin's configuration
 	// this is used to validate the configuration specified for the plugin
 	// on the client.
@@ -95,6 +76,10 @@ var (
 		//               enabled = false
 		//             }
 		//           }
+		//         },
+		//         {
+		//            name = "wasmedge"
+		//            enabled = true
 		//         }
 		//       ]
 		//     }
@@ -118,29 +103,51 @@ var (
 					hclspec.NewAttr("size", "number", false),
 					hclspec.NewLiteral(`5`),
 				),
-				"expiration": hclspec.NewDefault(
-					hclspec.NewBlock("expiration", false, cacheExpirationBlock),
+				"expiration": hclspec.NewDefault(hclspec.NewBlock("expiration", false, hclspec.NewObject(map[string]*hclspec.Spec{
+					"enabled": hclspec.NewDefault(
+						hclspec.NewAttr("enabled", "bool", false),
+						hclspec.NewLiteral(`true`),
+					),
+					"entryTTL": hclspec.NewDefault(
+						hclspec.NewAttr("entryTTL", "number", false),
+						hclspec.NewLiteral(`600`),
+					),
+				})),
 					hclspec.NewLiteral(`{
 					enabled = true
 					entryTTL = 600
 				}`),
 				),
-				"preCache": hclspec.NewDefault(
-					hclspec.NewBlock("preCache", false, preCacheBlock),
-					hclspec.NewLiteral(`{ enabled = false }`),
+				"preCache": hclspec.NewDefault(hclspec.NewBlock("preCache", false, hclspec.NewObject(map[string]*hclspec.Spec{
+					"enabled": hclspec.NewDefault(
+						hclspec.NewAttr("enabled", "bool", false),
+						hclspec.NewLiteral(`false`),
+					),
+					"modulesDir": hclspec.NewDefault(
+						hclspec.NewAttr("modulesDir", "string", false),
+						hclspec.NewLiteral(`""`),
+					),
+				})),
+					hclspec.NewLiteral(`{
+							enabled = false
+							modulesDir = ""
+					}`),
 				),
-			})), hclspec.NewLiteral(`{
-				enabled = true
-				type = "lfu"
-				size = 5
-				expiration = {
-					enabled = true
-					entryTTL = 600
-				}
-				preCache = {
-					enabled = false
-				}
-			}`)),
+			})),
+				hclspec.NewLiteral(`{
+						enabled = true
+						type = "lfu"
+						size = 5
+						expiration = {
+							enabled = true
+							entryTTL = 600
+						}
+						preCache = {
+							enabled = false
+							modulesDir = ""
+						}
+				}`),
+			),
 		})),
 	})
 
@@ -188,14 +195,18 @@ var (
 				hclspec.NewLiteral(`"alloc"`),
 			),
 			"args": hclspec.NewAttr("args", "list(number)", false),
-		})), hclspec.NewLiteral(`{ enabled = false }`)),
+		})),
+			hclspec.NewLiteral(`{ enabled = false }`),
+		),
 		"main": hclspec.NewDefault(hclspec.NewBlock("main", false, hclspec.NewObject(map[string]*hclspec.Spec{
 			"mainFuncName": hclspec.NewDefault(
 				hclspec.NewAttr("mainFuncName", "string", false),
 				hclspec.NewLiteral(`"handle_buffer"`),
 			),
 			"args": hclspec.NewAttr("args", "list(number)", false),
-		})), hclspec.NewLiteral(`{ mainFuncName = "handle_buffer" }`)),
+		})),
+			hclspec.NewLiteral(`{ mainFuncName = "handle_buffer" }`),
+		),
 	})
 
 	// capabilities indicates what optional features this driver supports
@@ -551,6 +562,9 @@ func (d *WasmTaskDriverPlugin) StartTask(cfg *drivers.TaskConfig) (*drivers.Task
 	}
 
 	if err := handle.SetDriverState(&driverState); err != nil {
+		// need to cleanup resources.
+		h.instance.Cleanup()
+
 		return nil, nil, fmt.Errorf("failed to set driver state: %v", err)
 	}
 
@@ -605,7 +619,7 @@ func (d *WasmTaskDriverPlugin) StopTask(taskID string, _timeout time.Duration, _
 		return drivers.ErrTaskNotFound
 	}
 
-	handle.stop()
+	handle.instance.Stop()
 
 	return nil
 }
@@ -627,7 +641,7 @@ func (d *WasmTaskDriverPlugin) DestroyTask(taskID string, force bool) error {
 	//
 
 	if handle.IsRunning() && force {
-		handle.stop()
+		handle.instance.Stop()
 	}
 
 	d.tasks.Delete(taskID)

@@ -3,6 +3,7 @@ package wasmtime
 import (
 	"github.com/bytecodealliance/wasmtime-go"
 	"github.com/pkg/errors"
+
 	"huawei.com/wasm-task-driver/wasm/engines"
 )
 
@@ -25,10 +26,12 @@ func (i *wasmtimeInstance) CallFunc(funcName string, args ...interface{}) (inter
 	return funcResult, nil
 }
 
-func (i *wasmtimeInstance) GetMemoryRange(start, end int32) []byte {
-	return i.instance.GetExport(i.store, "memory").Memory().UnsafeData(i.store)[start:end]
+func (i *wasmtimeInstance) GetMemoryRange(start, size int32) ([]byte, error) {
+	return i.instance.GetExport(i.store, "memory").Memory().UnsafeData(i.store)[start : start+size], nil
 }
 
 func (i *wasmtimeInstance) Stop() {
 	i.store.Engine.IncrementEpoch()
 }
+
+func (i *wasmtimeInstance) Cleanup() {}
