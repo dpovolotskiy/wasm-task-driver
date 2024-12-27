@@ -1,7 +1,7 @@
 PLUGIN_BINARY=build/wasm-task-driver
-export GO111MODULE=on
+PKGS = $(shell go list ./... | grep -v vendor)
 
-default: clean go-mod-tidy lint build
+default: clean go-mod-tidy lint test build
 
 .PHONY: clean
 clean: ## Remove build artifacts
@@ -15,3 +15,7 @@ lint:
 
 go-mod-tidy:
 	@go mod tidy -v
+
+test:
+	@go test -race -coverprofile=coverage.txt -covermode=atomic $(PKGS)
+	@go tool cover -html=coverage.txt -o coverage.html
