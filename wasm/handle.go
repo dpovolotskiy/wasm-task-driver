@@ -16,20 +16,21 @@ import (
 // such as process ID if this is a local task or other meta
 // data if this driver deals with external APIs.
 type taskHandle struct {
-	// stateLock syncs access to all fields below
-	stateLock sync.RWMutex
+	logger hclog.Logger
 
-	logger      hclog.Logger
-	taskConfig  *drivers.TaskConfig
-	procState   drivers.TaskState
 	startedAt   time.Time
 	completedAt time.Time
+	taskConfig  *drivers.TaskConfig
 	exitResult  *drivers.ExitResult
+	procState   drivers.TaskState
 
-	ioBufferConf IOBufferConfig
-	mainFunc     Main
 	instance     interfaces.WasmInstance
 	completionCh chan struct{}
+	mainFunc     Main
+	ioBufferConf IOBufferConfig
+
+	// stateLock syncs access to all fields below
+	stateLock sync.RWMutex
 }
 
 func (h *taskHandle) TaskStatus() *drivers.TaskStatus {
