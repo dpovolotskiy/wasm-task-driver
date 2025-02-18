@@ -1,7 +1,7 @@
 PLUGIN_BINARY=build/wasm-task-driver
 export GO111MODULE=on
 
-default: build
+default: clean go-mod-tidy lint build
 
 .PHONY: clean
 clean: ## Remove build artifacts
@@ -14,4 +14,4 @@ lint:
 	@golangci-lint run --timeout 15m
 
 go-mod-tidy:
-	@report=`go mod tidy -v 2>&1` ; if [ -n "$$report" ]; then echo "$$report"; exit 1; fi
+	@go mod tidy -v
