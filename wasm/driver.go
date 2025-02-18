@@ -219,9 +219,9 @@ var (
 )
 
 type PreCacheConfig struct {
-	Enabled bool `codec:"enabled"`
 	// ModulesDir specify path to directory from where all modules will be pre-cached.
 	ModulesDir string `codec:"modulesDir"`
+	Enabled    bool   `codec:"enabled"`
 }
 
 type ExpirationConfig struct {
@@ -231,18 +231,18 @@ type ExpirationConfig struct {
 }
 
 type CacheConfig struct {
-	Enabled bool `codec:"enabled"`
-	Size    int  `codec:"size"`
 	// Cache type one of: lfu, lru, arc or simple.
 	Type       string           `codec:"type"`
 	PreCache   PreCacheConfig   `codec:"preCache"`
 	Expiration ExpirationConfig `codec:"expiration"`
+	Size       int              `codec:"size"`
+	Enabled    bool             `codec:"enabled"`
 }
 
 type EngineConfig struct {
 	Name    string      `codec:"name"`
-	Enabled bool        `codec:"enabled"`
 	Cache   CacheConfig `codec:"cache"`
+	Enabled bool        `codec:"enabled"`
 }
 
 // Config contains configuration information for the plugin.
@@ -261,14 +261,11 @@ type TaskConfig struct {
 	// configuration for the task into Go constructs.
 	Engine     string         `codec:"engine"`
 	ModulePath string         `codec:"modulePath"`
-	IOBuffer   IOBufferConfig `codec:"ioBuffer"`
 	Main       Main           `codec:"main"`
+	IOBuffer   IOBufferConfig `codec:"ioBuffer"`
 }
 
 type IOBufferConfig struct {
-	Enabled bool `codec:"enabled"`
-	// Size defines the length of the buffer created in the WASM module.
-	Size int32 `codec:"size"`
 	// InputValue defines the value passed to the WASM module buffer.
 	InputValue string `codec:"inputValue"`
 	// IOBufFuncName defines the name of the exported function in the WASM module
@@ -276,6 +273,9 @@ type IOBufferConfig struct {
 	IOBufFuncName string `codec:"IOBufFuncName"`
 	// Args stores args that can be passed to the corresponding function.
 	Args []int32 `codec:"args"`
+	// Size defines the length of the buffer created in the WASM module.
+	Size    int32 `codec:"size"`
+	Enabled bool  `codec:"enabled"`
 }
 
 type Main struct {

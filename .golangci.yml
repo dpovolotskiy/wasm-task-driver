@@ -1,7 +1,5 @@
 run:
   tests: true
-  max-issues-per-linter: 0
-  max-same-issues: 0
 
 linters:
   disable-all: true
@@ -10,12 +8,11 @@ linters:
     - bodyclose
     - dogsled
     - errcheck
-    - exportloopref
+    - copyloopvar
     - gocognit
     - goconst
     - gocyclo
     - godot
-      #- goerr113
     - gofmt
     - goimports
     - gomodguard
@@ -41,12 +38,10 @@ linters:
 linters-settings:
   gofmt:
     simplify: true
-  golint:
-    min-confidence: 0.9
   govet:
-    check-shadowing: true
-    # enable:
-    # - "fieldalignment"
+    enable:
+      - shadow
+      - fieldalignment
   gocyclo:
     min-complexity: 15
   gocognit:
