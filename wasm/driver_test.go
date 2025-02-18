@@ -57,8 +57,8 @@ func init() {
 func TestInitializeEngine(t *testing.T) {
 	tCases := []struct {
 		name           string
-		engineConf     EngineConfig
 		expectedErrMsg string
+		engineConf     EngineConfig
 	}{
 		{
 			name: "unable to find engine",
@@ -160,8 +160,8 @@ func TestInitializeEngine(t *testing.T) {
 func TestBuildCache(t *testing.T) {
 	tCases := []struct {
 		name           string
-		conf           CacheConfig
 		expectedErrMsg string
+		conf           CacheConfig
 	}{
 		{
 			name: "unexpected cache type",
@@ -208,8 +208,8 @@ func TestBuildCache(t *testing.T) {
 func TestSetConfig(t *testing.T) {
 	tCases := []struct {
 		name           string
-		config         []byte
 		expectedErrMsg string
+		config         []byte
 	}{
 		{
 			name:           "unable to decode config",
@@ -349,9 +349,9 @@ func TestSetConfig(t *testing.T) {
 
 func TestBuildFingerprint(t *testing.T) {
 	tCases := []struct {
-		name                string
 		driver              *WasmTaskDriverPlugin
 		expectedFingerprint *drivers.Fingerprint
+		name                string
 	}{
 		{
 			name: "single runtime driver",
@@ -519,10 +519,10 @@ func TestStartTask(t *testing.T) {
 
 func TestDestroyTask(t *testing.T) {
 	tCases := []struct {
-		name           string
 		driver         *WasmTaskDriverPlugin
-		force          bool
+		name           string
 		expectedErrMsg string
+		force          bool
 	}{
 		{
 			name: "task not found",

@@ -36,8 +36,8 @@ func TestNewTaskStore(t *testing.T) {
 
 func TestSet(t *testing.T) {
 	tCases := []struct {
-		name      string
 		keysToAdd map[string]*taskHandle
+		name      string
 	}{
 		{
 			name: "don't add any keys to store",
@@ -93,10 +93,10 @@ func TestSet(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	tCases := []struct {
-		name          string
 		presentKeys   map[string]*taskHandle
-		expectedFound bool
+		name          string
 		keyToGet      string
+		expectedFound bool
 	}{
 		{
 			name:          "try to get absent key",
